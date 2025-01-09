@@ -86,19 +86,19 @@ public class MakerApplication {
         JSONParser jsonParser = new JSONParser();
         JSONObject jsonObject = (JSONObject) jsonParser.parse(responseBody);
 
-        JSONObject response = (JSONObject)jsonObject.get("response");
-        JSONObject body = (JSONObject)response.get("body");
+        JSONObject response = (JSONObject) jsonObject.get("response");
+        JSONObject body = (JSONObject) response.get("body");
 
         int totalCount = Integer.parseInt(body.get("totalCount").toString());
         System.out.println("totalCount: " + totalCount);
 
-        JSONObject items = (JSONObject)body.get("items");
-        JSONArray item = (JSONArray)items.get("item");
+        JSONObject items = (JSONObject) body.get("items");
+        JSONArray item = (JSONArray) items.get("item");
 
-        JSONObject field = (JSONObject)item.getFirst();
+        JSONObject field = (JSONObject) item.getFirst();
         System.out.println("field: " + field);
 
-        for(Object key: field.keySet()){
+        for (Object key : field.keySet()) {
             System.out.println("key: " + key + ", value: " + field.get(key));
         }
     }
@@ -127,6 +127,15 @@ public class MakerApplication {
         }
     }
 
+    /**
+     * xml response 처리
+     * @param responseBody String
+     * @param className String
+     * @param serviceName  String
+     * @throws ParserConfigurationException ParserConfigurationException
+     * @throws IOException IOException
+     * @throws SAXException SAXException
+     */
     private static void processResponse(String responseBody, String className, String serviceName) throws ParserConfigurationException, IOException, SAXException {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
