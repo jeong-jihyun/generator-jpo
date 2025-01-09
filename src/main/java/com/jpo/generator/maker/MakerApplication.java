@@ -21,19 +21,17 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringReader;
-import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.Set;
 
 @SpringBootApplication
 public class MakerApplication {
     public static final String USER_AGENT = "Mozilla/5.0";
 
     public static void main(String[] args) throws IOException, URISyntaxException, ParserConfigurationException, SAXException, ParseException {
-        String urlStr = "https://apis.data.go.kr/1160100/service/GetDiscInfoService_V2/getAsseTranPutBackOptiDiscInfo_V2?resultType=xml&serviceKey=3NKSD4pMiU1dAnSi9YfhhEcZyp1uL2gFUk8wq7Iy3Nex4lGzhRXbYlaKnxUDb2P5IxztSaDkmL14JHAbRONlDw%3D%3D&";
+        String urlStr = "https://apis.data.go.kr/1160100/service/GetDiscInfoService_V2/getDishDiscInfo_V2?resultType=json&serviceKey=3NKSD4pMiU1dAnSi9YfhhEcZyp1uL2gFUk8wq7Iy3Nex4lGzhRXbYlaKnxUDb2P5IxztSaDkmL14JHAbRONlDw%3D%3D&";
 
         String temp = urlStr.split("\\?")[0];
         int lastSlashIndex = temp.lastIndexOf("/");
@@ -79,8 +77,6 @@ public class MakerApplication {
                 response.append(inputline.trim());
             }
             processResponseJson(response.toString(), className, serviceName);
-        } catch (IOException | org.json.simple.parser.ParseException ex) {
-            throw ex;
         } finally {
             con.disconnect();
         }
@@ -114,8 +110,6 @@ public class MakerApplication {
                 response.append(inputline.trim());
             }
             processResponseXML(response.toString(), className, serviceName);
-        } catch (IOException ex) {
-            throw ex;
         } finally {
             con.disconnect();
         }
@@ -130,16 +124,13 @@ public class MakerApplication {
      * @throws IOException IOException
      */
     private static void processResponseJson(String responseBody, String className, String serviceName) throws org.json.simple.parser.ParseException, IOException {
-        // System.out.println("responseBody: " + responseBody);
+        System.out.println("responseBody: " + responseBody);
 
         JSONParser jsonParser = new JSONParser();
         JSONObject jsonObject = (JSONObject) jsonParser.parse(responseBody);
 
         JSONObject response = (JSONObject) jsonObject.get("response");
         JSONObject body = (JSONObject) response.get("body");
-
-        int totalCount = Integer.parseInt(body.get("totalCount").toString());
-        // System.out.println("totalCount: " + totalCount);
 
         JSONObject items = (JSONObject) body.get("items");
         JSONArray item = (JSONArray) items.get("item");
@@ -152,11 +143,9 @@ public class MakerApplication {
 
         int n = 0;
         for (Object key : field.keySet()) {
-            // System.out.println("key: " + key + ", value: " + field.get(key));
             String fieldName = key.toString();
             String nValue = field.get(key).toString();
             if (n < 1) {
-                String fieldType = GeneratorUtil.determineFieldType(fieldName, nValue == null ? "" : nValue);
                 classContent.append("    @Id\n");
                 classContent.append("    @GeneratedValue(strategy = GenerationType.IDENTITY)\n");
                 classContent.append("    private Long id;\n\n");
@@ -188,35 +177,34 @@ public class MakerApplication {
         serviceContent.append("    @Autowired\n");
         serviceContent.append("    private ").append(className).append("Repository ").append(repositoryName).append("Repository;\n");
         serviceContent.append("    private void ").append(className).append("ProcessResponse(String responseBody) throws ParserConfigurationException, SAXException, IOException {\n");
-        serviceContent.append("        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();\n");
-        serviceContent.append("        DocumentBuilder builder = dbFactory.newDocumentBuilder();\n");
-        serviceContent.append("        Document document = dBuilder.parse(new InputSource(new StringReader(responseBody)));\n");
-        serviceContent.append("        document.getDocumentElement().normalize();\n");
-        serviceContent.append("        NodeList childList = doc.getElementsByTagName(\"item\");\n");
-        serviceContent.append("        for (int i = 0; i < childList.getLength(); i++) {\n");
-        serviceContent.append("            Node item = childList.item(i);\n");
-        serviceContent.append("            if (item.getNodeType() == Node.ELEMENT_NODE) {\n");
-        serviceContent.append("                Element element = (Element) item;\n");
-        serviceContent.append("                ").append(repositoryName).append("Repository.save(").append(className).append("Entity.builder()\n");
+        serviceContent.append("        JSONParser jsonParser = new JSONParser();\n");
+        serviceContent.append("        JSONObject jsonObject = (JSONObject) jsonParser.parse(responseBody);\n");
+        serviceContent.append("        JSONObject response = (JSONObject) jsonObject.get(\"response\");\n");
+        serviceContent.append("        JSONObject body = (JSONObject) response.get(\"body\");\n");
+        serviceContent.append("        JSONObject items = (JSONObject) body.get(\"items\");\n");
+        serviceContent.append("        JSONArray item = (JSONArray) items.get(\"item\");\n\n");
+
+        serviceContent.append("        for (Object json : item) {\n");
+        serviceContent.append("            JSONObject field = (JSONObject) json;\n");
+        serviceContent.append("            ").append(repositoryName).append("Repository.save(").append(className).append("Entity.builder()\n");
 
         for (Object key : field.keySet()) {
             String fieldName = key.toString();
             String nValue = field.get(key).toString();
             switch (GeneratorUtil.determineFieldType(fieldName, nValue == null ? "" : nValue)) {
                 case "String":
-                    serviceContent.append("                    .").append(fieldName).append("(BatchUtil.getTagValue(\"").append(fieldName).append("\", element))\n");
+                    serviceContent.append("                    .").append(fieldName).append("(field.get(\"").append(fieldName).append("\").toString())\n");
                     break;
                 case "int":
-                    serviceContent.append("                    .").append(fieldName).append("(Integer.parseInt(Objects.requireNonNull(BatchUtil.getTagValue(\"").append(fieldName).append("\", element))))\n");
+                    serviceContent.append("                    .").append(fieldName).append("(Integer.parseInt(field.get(\"").append(fieldName).append("\").toString()))\n");
                     break;
                 case "double":
-                    serviceContent.append("                    .").append(fieldName).append("(Double.parseDouble(Objects.requireNonNull(BatchUtil.getTagValue(\"").append(fieldName).append("\", element))))\n");
+                    serviceContent.append("                    .").append(fieldName).append("(Double.parseDouble(field.get(\"").append(fieldName).append("\").toString()))\n");
                     break;
             }
         }
 
         serviceContent.append("                    .build());\n");
-        serviceContent.append("            }\n");
         serviceContent.append("        }\n");
         serviceContent.append("    }\n");
         serviceContent.append("}\n");
@@ -233,6 +221,8 @@ public class MakerApplication {
      * @throws SAXException SAXException
      */
     private static void processResponseXML(String responseBody, String className, String serviceName) throws ParserConfigurationException, IOException, SAXException {
+        System.out.println("responseBody: " + responseBody);
+
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
         Document doc = dBuilder.parse(new InputSource(new StringReader(responseBody)));
@@ -257,7 +247,6 @@ public class MakerApplication {
                         Node nValue = nlList.item(0);
 
                         if (n < 1) {
-                            String fieldType = GeneratorUtil.determineFieldType(fieldName, nValue == null ? "" : nValue.getNodeValue());
                             classContent.append("    @Id\n");
                             classContent.append("    @GeneratedValue(strategy = GenerationType.IDENTITY)\n");
                             classContent.append("    private Long id;\n\n");
