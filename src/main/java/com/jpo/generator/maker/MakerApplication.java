@@ -4,6 +4,7 @@ import com.jpo.generator.maker.util.GeneratorUtil;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -20,6 +21,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringReader;
+import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -30,31 +32,36 @@ import java.util.Set;
 public class MakerApplication {
     public static final String USER_AGENT = "Mozilla/5.0";
 
-    public static void main(String[] args) {
-        try {
-            String urlStr = "https://apis.data.go.kr/1160100/service/GetFinaStatInfoService_V2/getSummFinaStat_V2?serviceKey=3NKSD4pMiU1dAnSi9YfhhEcZyp1uL2gFUk8wq7Iy3Nex4lGzhRXbYlaKnxUDb2P5IxztSaDkmL14JHAbRONlDw%3D%3D&numOfRows=1&pageNo=1&resultType=json";
+    public static void main(String[] args) throws IOException, URISyntaxException, ParserConfigurationException, SAXException, ParseException {
+        String urlStr = "https://apis.data.go.kr/1160100/service/GetDiscInfoService_V2/getAsseTranPutBackOptiDiscInfo_V2?resultType=xml&serviceKey=3NKSD4pMiU1dAnSi9YfhhEcZyp1uL2gFUk8wq7Iy3Nex4lGzhRXbYlaKnxUDb2P5IxztSaDkmL14JHAbRONlDw%3D%3D&";
 
-            String temp = urlStr.split("\\?")[0];
-            int lastSlashIndex = temp.lastIndexOf("/");
-            String className = temp.substring(lastSlashIndex + 1).replace("get", "").replace("_V2", "");
-            String serviceName = temp.substring(temp.lastIndexOf("service/") + 8, lastSlashIndex).replace("Get", "").replace("_V2", "");
-            System.out.println("className: " + className + ", serviceName: " + serviceName);
+        String temp = urlStr.split("\\?")[0];
+        int lastSlashIndex = temp.lastIndexOf("/");
+        String className = temp.substring(lastSlashIndex + 1).replace("get", "").replace("_V2", "");
+        String serviceName = temp.substring(temp.lastIndexOf("service/") + 8, lastSlashIndex).replace("Get", "").replace("_V2", "");
+        System.out.println("className: " + className + ", serviceName: " + serviceName);
 
-            URL url = new URL(urlStr);
-            Map<String, String> map = GeneratorUtil.getQueryMap(url.getQuery());
-            String resultType = map.get("resultType");
-            System.out.println("resultType: " + resultType);
+        URL url = (new URL(urlStr)).toURI().toURL();
+        Map<String, String> map = GeneratorUtil.getQueryMap(url.getQuery());
+        String resultType = map.get("resultType");
+        System.out.println("resultType: " + resultType);
 
-            if ("xml".equals(resultType)) {
-                xmlGenerator(urlStr, className, serviceName);
-            } else {
-                jsonGenerator(urlStr, className, serviceName);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
+        if ("xml".equals(resultType)) {
+            xmlGenerator(urlStr, className, serviceName);
+        } else {
+            jsonGenerator(urlStr, className, serviceName);
         }
     }
 
+    /**
+     * json 변환 처리
+     * @param urlStr String
+     * @param className String
+     * @param serviceName String
+     * @throws IOException IOException
+     * @throws org.json.simple.parser.ParseException org.json.simple.parser.ParseException
+     * @throws URISyntaxException URISyntaxException
+     */
     private static void jsonGenerator(String urlStr, String className, String serviceName) throws IOException, org.json.simple.parser.ParseException, URISyntaxException {
         URL url = (new URL(urlStr)).toURI().toURL();
         HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
@@ -79,6 +86,16 @@ public class MakerApplication {
         }
     }
 
+    /**
+     * xml 변환 처리
+     * @param urlStr String
+     * @param className String
+     * @param serviceName String
+     * @throws IOException IOException
+     * @throws ParserConfigurationException ParserConfigurationException
+     * @throws SAXException SAXException
+     * @throws URISyntaxException URISyntaxException
+     */
     private static void xmlGenerator(String urlStr, String className, String serviceName) throws IOException, ParserConfigurationException, SAXException, URISyntaxException {
         //URL url = new URL(urlStr);
         URL url = (new URL(urlStr)).toURI().toURL();
@@ -103,6 +120,15 @@ public class MakerApplication {
             con.disconnect();
         }
     }
+
+    /**
+     * json response 처리
+     * @param responseBody String
+     * @param className String
+     * @param serviceName String
+     * @throws org.json.simple.parser.ParseException org.json.simple.parser.ParseException
+     * @throws IOException IOException
+     */
     private static void processResponseJson(String responseBody, String className, String serviceName) throws org.json.simple.parser.ParseException, IOException {
         // System.out.println("responseBody: " + responseBody);
 
@@ -196,6 +222,7 @@ public class MakerApplication {
         serviceContent.append("}\n");
         GeneratorUtil.writeFile(serviceName + ".java", serviceContent.toString());
     }
+
     /**
      * xml response 처리
      * @param responseBody String
@@ -266,10 +293,11 @@ public class MakerApplication {
         serviceContent.append("    private ").append(className).append("Repository ").append(repositoryName).append("Repository;\n");
         serviceContent.append("    private void ").append(className).append("ProcessResponse(String responseBody) throws ParserConfigurationException, SAXException, IOException {\n");
         serviceContent.append("        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();\n");
-        serviceContent.append("        DocumentBuilder builder = dbFactory.newDocumentBuilder();\n");
-        serviceContent.append("        Document document = dBuilder.parse(new InputSource(new StringReader(responseBody)));\n");
+        serviceContent.append("        DocumentBuilder builder = factory.newDocumentBuilder();\n");
+        serviceContent.append("        Document document = builder.parse(new InputSource(new StringReader(responseBody)));\n");
         serviceContent.append("        document.getDocumentElement().normalize();\n");
-        serviceContent.append("        NodeList childList = doc.getElementsByTagName(\"item\");\n");
+        serviceContent.append("        NodeList childList = document.getElementsByTagName(\"item\");\n\n");
+
         serviceContent.append("        for (int i = 0; i < childList.getLength(); i++) {\n");
         serviceContent.append("            Node item = childList.item(i);\n");
         serviceContent.append("            if (item.getNodeType() == Node.ELEMENT_NODE) {\n");
