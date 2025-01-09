@@ -99,6 +99,6 @@ public class GeneratorUtil {
         classContent.append("@NoArgsConstructor\n");
         classContent.append("@Entity\n");
         classContent.append("@Table(name = \"").append(className.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase()).append("\")\n");
-        classContent.append("public class ").append(className).append(" {\n\n");
+        classContent.append("public class ").append(className+"Entity").append(" {\n\n");
     }
 }

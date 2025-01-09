@@ -20,6 +20,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringReader;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -47,10 +48,6 @@ public class MakerApplication {
             if ("xml".equals(resultType)) {
                 xmlGenerator(urlStr, className, serviceName);
             } else {
-                Set<String> keys = map.keySet();
-                for (String key : keys) {
-                    System.out.println(key + " : " + map.get(key));
-                }
                 jsonGenerator(urlStr, className, serviceName);
             }
         } catch (Exception e) {
@@ -58,8 +55,8 @@ public class MakerApplication {
         }
     }
 
-    private static void jsonGenerator(String urlStr, String className, String serviceName) throws IOException, org.json.simple.parser.ParseException {
-        URL url = new URL(urlStr);
+    private static void jsonGenerator(String urlStr, String className, String serviceName) throws IOException, org.json.simple.parser.ParseException, URISyntaxException {
+        URL url = (new URL(urlStr)).toURI().toURL();
         HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
         con.setRequestMethod("GET");
         con.setRequestProperty("User-Agent", USER_AGENT);
@@ -82,29 +79,9 @@ public class MakerApplication {
         }
     }
 
-    private static void processResponseJson(String responseBody, String className, String serviceName) throws org.json.simple.parser.ParseException {
-        JSONParser jsonParser = new JSONParser();
-        JSONObject jsonObject = (JSONObject) jsonParser.parse(responseBody);
-
-        JSONObject response = (JSONObject) jsonObject.get("response");
-        JSONObject body = (JSONObject) response.get("body");
-
-        int totalCount = Integer.parseInt(body.get("totalCount").toString());
-        System.out.println("totalCount: " + totalCount);
-
-        JSONObject items = (JSONObject) body.get("items");
-        JSONArray item = (JSONArray) items.get("item");
-
-        JSONObject field = (JSONObject) item.getFirst();
-        System.out.println("field: " + field);
-
-        for (Object key : field.keySet()) {
-            System.out.println("key: " + key + ", value: " + field.get(key));
-        }
-    }
-
-    private static void xmlGenerator(String urlStr, String className, String serviceName) throws IOException, ParserConfigurationException, SAXException {
-        URL url = new URL(urlStr);
+    private static void xmlGenerator(String urlStr, String className, String serviceName) throws IOException, ParserConfigurationException, SAXException, URISyntaxException {
+        //URL url = new URL(urlStr);
+        URL url = (new URL(urlStr)).toURI().toURL();
         HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
         con.setRequestMethod("GET");
         con.setRequestProperty("User-Agent", USER_AGENT);
@@ -119,14 +96,106 @@ public class MakerApplication {
             while ((inputline = in.readLine()) != null) {
                 response.append(inputline.trim());
             }
-            processResponse(response.toString(), className, serviceName);
+            processResponseXML(response.toString(), className, serviceName);
         } catch (IOException ex) {
             throw ex;
         } finally {
             con.disconnect();
         }
     }
+    private static void processResponseJson(String responseBody, String className, String serviceName) throws org.json.simple.parser.ParseException, IOException {
+        // System.out.println("responseBody: " + responseBody);
 
+        JSONParser jsonParser = new JSONParser();
+        JSONObject jsonObject = (JSONObject) jsonParser.parse(responseBody);
+
+        JSONObject response = (JSONObject) jsonObject.get("response");
+        JSONObject body = (JSONObject) response.get("body");
+
+        int totalCount = Integer.parseInt(body.get("totalCount").toString());
+        // System.out.println("totalCount: " + totalCount);
+
+        JSONObject items = (JSONObject) body.get("items");
+        JSONArray item = (JSONArray) items.get("item");
+
+        JSONObject field = (JSONObject) item.getFirst();
+        // System.out.println("field: " + field);
+
+        StringBuilder classContent = new StringBuilder();
+        GeneratorUtil.defaultEntityStringBuilder(className, classContent);
+
+        int n = 0;
+        for (Object key : field.keySet()) {
+            // System.out.println("key: " + key + ", value: " + field.get(key));
+            String fieldName = key.toString();
+            String nValue = field.get(key).toString();
+            if (n < 1) {
+                String fieldType = GeneratorUtil.determineFieldType(fieldName, nValue == null ? "" : nValue);
+                classContent.append("    @Id\n");
+                classContent.append("    @GeneratedValue(strategy = GenerationType.IDENTITY)\n");
+                classContent.append("    private Long id;\n\n");
+            }
+
+            String fieldType = GeneratorUtil.determineFieldType(fieldName, nValue == null ? "" : nValue);
+            classContent.append("    @Column(name = \"").append(fieldName.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase()).append("\")\n");
+            classContent.append("    private ").append(fieldType).append(" ").append(fieldName).append(";\n\n");
+            n++;
+        }
+        classContent.append("}\n");
+        GeneratorUtil.writeFile(className + "Entity.java", classContent.toString());
+
+        StringBuilder repositoryContent = new StringBuilder();
+        GeneratorUtil.defaultRepositoryStringBuilder(className, repositoryContent);
+
+        GeneratorUtil.writeFile(className + "Repository.java", repositoryContent.toString());
+
+        StringBuilder serviceContent = new StringBuilder();
+        String repositoryName = GeneratorUtil.toCamelCase(className.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase());
+
+        serviceContent.append("package com.herojoon.jpaproject.service;\n\n");
+        serviceContent.append("import com.herojoon.jpaproject.entity.").append(className + "Entity").append(";\n");
+        serviceContent.append("import com.herojoon.jpaproject.repository.").append(className).append("Repository;\n");
+        serviceContent.append("import org.springframework.beans.factory.annotation.Autowired;\n");
+        serviceContent.append("import org.springframework.stereotype.Service;\n\n");
+        serviceContent.append("@Service\n");
+        serviceContent.append("public class ").append(serviceName).append(" {\n");
+        serviceContent.append("    @Autowired\n");
+        serviceContent.append("    private ").append(className).append("Repository ").append(repositoryName).append("Repository;\n");
+        serviceContent.append("    private void ").append(className).append("ProcessResponse(String responseBody) throws ParserConfigurationException, SAXException, IOException {\n");
+        serviceContent.append("        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();\n");
+        serviceContent.append("        DocumentBuilder builder = dbFactory.newDocumentBuilder();\n");
+        serviceContent.append("        Document document = dBuilder.parse(new InputSource(new StringReader(responseBody)));\n");
+        serviceContent.append("        document.getDocumentElement().normalize();\n");
+        serviceContent.append("        NodeList childList = doc.getElementsByTagName(\"item\");\n");
+        serviceContent.append("        for (int i = 0; i < childList.getLength(); i++) {\n");
+        serviceContent.append("            Node item = childList.item(i);\n");
+        serviceContent.append("            if (item.getNodeType() == Node.ELEMENT_NODE) {\n");
+        serviceContent.append("                Element element = (Element) item;\n");
+        serviceContent.append("                ").append(repositoryName).append("Repository.save(").append(className).append("Entity.builder()\n");
+
+        for (Object key : field.keySet()) {
+            String fieldName = key.toString();
+            String nValue = field.get(key).toString();
+            switch (GeneratorUtil.determineFieldType(fieldName, nValue == null ? "" : nValue)) {
+                case "String":
+                    serviceContent.append("                    .").append(fieldName).append("(BatchUtil.getTagValue(\"").append(fieldName).append("\", element))\n");
+                    break;
+                case "int":
+                    serviceContent.append("                    .").append(fieldName).append("(Integer.parseInt(Objects.requireNonNull(BatchUtil.getTagValue(\"").append(fieldName).append("\", element))))\n");
+                    break;
+                case "double":
+                    serviceContent.append("                    .").append(fieldName).append("(Double.parseDouble(Objects.requireNonNull(BatchUtil.getTagValue(\"").append(fieldName).append("\", element))))\n");
+                    break;
+            }
+        }
+
+        serviceContent.append("                    .build());\n");
+        serviceContent.append("            }\n");
+        serviceContent.append("        }\n");
+        serviceContent.append("    }\n");
+        serviceContent.append("}\n");
+        GeneratorUtil.writeFile(serviceName + ".java", serviceContent.toString());
+    }
     /**
      * xml response 처리
      * @param responseBody String
@@ -136,7 +205,7 @@ public class MakerApplication {
      * @throws IOException IOException
      * @throws SAXException SAXException
      */
-    private static void processResponse(String responseBody, String className, String serviceName) throws ParserConfigurationException, IOException, SAXException {
+    private static void processResponseXML(String responseBody, String className, String serviceName) throws ParserConfigurationException, IOException, SAXException {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
         Document doc = dBuilder.parse(new InputSource(new StringReader(responseBody)));
