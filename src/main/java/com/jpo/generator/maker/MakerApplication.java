@@ -31,7 +31,7 @@ public class MakerApplication {
     public static final String USER_AGENT = "Mozilla/5.0";
 
     public static void main(String[] args) throws IOException, URISyntaxException, ParserConfigurationException, SAXException, ParseException {
-        String urlStr = "https://apis.data.go.kr/1160100/service/GetDiscInfoService_V2/getBusiSuspDiscInfo_V2?serviceKey=3NKSD4pMiU1dAnSi9YfhhEcZyp1uL2gFUk8wq7Iy3Nex4lGzhRXbYlaKnxUDb2P5IxztSaDkmL14JHAbRONlDw%3D%3D&numOfRows=1&pageNo=1&resultType=xml";
+        String urlStr = "https://apis.data.go.kr/1160100/service/GetDiscInfoService_V2/getReduCapiDiscInfo_V2?resultType=xml&serviceKey=3NKSD4pMiU1dAnSi9YfhhEcZyp1uL2gFUk8wq7Iy3Nex4lGzhRXbYlaKnxUDb2P5IxztSaDkmL14JHAbRONlDw%3D%3D&";
 
         String temp = urlStr.split("\\?")[0];
         int lastSlashIndex = temp.lastIndexOf("/");
@@ -259,8 +259,10 @@ public class MakerApplication {
 
         serviceContent.append("                    .build());\n");
         serviceContent.append("        }\n");
-        serviceContent.append("    }\n");
+        serviceContent.append("    }\n\n\n");
+        
         serviceContent.append("}\n");
+
         GeneratorUtil.writeFile(serviceName + ".java", serviceContent.toString());
     }
 
@@ -426,8 +428,10 @@ public class MakerApplication {
         serviceContent.append("                    .build());\n");
         serviceContent.append("            }\n");
         serviceContent.append("        }\n");
-        serviceContent.append("    }\n");
+        serviceContent.append("    }\n\n\n");
+
         serviceContent.append("}\n");
+
         GeneratorUtil.writeFile(serviceName + ".java", serviceContent.toString());
 
         System.out.println("Entity class generated successfully!");

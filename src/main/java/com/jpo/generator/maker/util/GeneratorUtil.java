@@ -72,7 +72,7 @@ public class GeneratorUtil {
      */
     public static String determineFieldType(String fieldName, String value) {
         String fieldType = "String";
-        if (fieldName.contains("Dt") && GeneratorUtil.isDate(value, "yyyyMMdd")) {
+        if ((fieldName.contains("Dt") && GeneratorUtil.isDate(value, "yyyyMMdd")) || fieldName.contains("crno")) {
             fieldType = "String";
         } else {
             if (!value.contains("00")) {
