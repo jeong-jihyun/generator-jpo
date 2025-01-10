@@ -49,6 +49,13 @@ public class GeneratorUtil {
             return false;
         }
     }
+
+    /**
+     * 파일생성
+     * @param fileName 파일이름
+     * @param content 내용
+     * @throws IOException IOException
+     */
     public static void writeFile(String fileName, String content) throws IOException {
         FileWriter fileWriter = new FileWriter(fileName);
         fileWriter.write(content);
@@ -57,6 +64,12 @@ public class GeneratorUtil {
     public static String capitalize(String str) {
         return str.substring(0, 1).toUpperCase() + str.substring(1);
     }
+    /**
+     * 필드 타입 결정
+     * @param fieldName 필드명
+     * @param value 값
+     * @return 필드타입
+     */
     public static String determineFieldType(String fieldName, String value) {
         String fieldType = "String";
         if (fieldName.contains("Dt") && GeneratorUtil.isDate(value, "yyyyMMdd")) {
@@ -68,9 +81,14 @@ public class GeneratorUtil {
                 }
             }
         }
-        // System.out.println("fieldName:" + fieldName + ", value: " + value + ", fieldType: " + fieldType);
         return fieldType;
     }
+
+    /**
+     * Repository 기본 템플릿
+     * @param className 클래스명
+     * @param repositoryContent 내용
+     */
     public static void defaultRepositoryStringBuilder(String className, StringBuilder repositoryContent) {
         repositoryContent.append("package com.herojoon.jpaproject.repository;\n\n");
 
@@ -81,7 +99,11 @@ public class GeneratorUtil {
         repositoryContent.append("public interface ").append(className).append("Repository extends JpaRepository<").append(className + "Entity").append(", Long> {\n");
         repositoryContent.append("}\n");
     }
-
+    /**
+     * Entity 기본 템플릿
+     * @param className 클래스명
+     * @param classContent 내용
+     */
     public static void defaultEntityStringBuilder(String className, StringBuilder classContent) {
         classContent.append("package com.herojoon.jpaproject.entity;\n\n");
 

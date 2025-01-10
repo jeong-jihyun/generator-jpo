@@ -31,7 +31,7 @@ public class MakerApplication {
     public static final String USER_AGENT = "Mozilla/5.0";
 
     public static void main(String[] args) throws IOException, URISyntaxException, ParserConfigurationException, SAXException, ParseException {
-        String urlStr = "https://apis.data.go.kr/1160100/service/GetDiscInfoService_V2/getDishDiscInfo_V2?resultType=json&serviceKey=3NKSD4pMiU1dAnSi9YfhhEcZyp1uL2gFUk8wq7Iy3Nex4lGzhRXbYlaKnxUDb2P5IxztSaDkmL14JHAbRONlDw%3D%3D&";
+        String urlStr = "https://apis.data.go.kr/1160100/service/GetDiscInfoService_V2/getBusiSuspDiscInfo_V2?serviceKey=3NKSD4pMiU1dAnSi9YfhhEcZyp1uL2gFUk8wq7Iy3Nex4lGzhRXbYlaKnxUDb2P5IxztSaDkmL14JHAbRONlDw%3D%3D&numOfRows=1&pageNo=1&resultType=xml";
 
         String temp = urlStr.split("\\?")[0];
         int lastSlashIndex = temp.lastIndexOf("/");
@@ -76,7 +76,7 @@ public class MakerApplication {
             while ((inputline = in.readLine()) != null) {
                 response.append(inputline.trim());
             }
-            processResponseJson(response.toString(), className, serviceName);
+            processResponseJson(response.toString(), className, serviceName, urlStr);
         } finally {
             con.disconnect();
         }
@@ -109,7 +109,7 @@ public class MakerApplication {
             while ((inputline = in.readLine()) != null) {
                 response.append(inputline.trim());
             }
-            processResponseXML(response.toString(), className, serviceName);
+            processResponseXML(response.toString(), className, serviceName, urlStr);
         } finally {
             con.disconnect();
         }
@@ -123,9 +123,7 @@ public class MakerApplication {
      * @throws org.json.simple.parser.ParseException org.json.simple.parser.ParseException
      * @throws IOException IOException
      */
-    private static void processResponseJson(String responseBody, String className, String serviceName) throws org.json.simple.parser.ParseException, IOException {
-        System.out.println("responseBody: " + responseBody);
-
+    private static void processResponseJson(String responseBody, String className, String serviceName, String urlStr) throws org.json.simple.parser.ParseException, IOException {
         JSONParser jsonParser = new JSONParser();
         JSONObject jsonObject = (JSONObject) jsonParser.parse(responseBody);
 
@@ -152,7 +150,11 @@ public class MakerApplication {
             }
 
             String fieldType = GeneratorUtil.determineFieldType(fieldName, nValue == null ? "" : nValue);
-            classContent.append("    @Column(name = \"").append(fieldName.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase()).append("\")\n");
+            if (fieldName.contains("Ctt")) {
+                classContent.append("    @Column(name = \"").append(fieldName.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase()).append("\", length=4000").append(")\n");
+            }else{
+                classContent.append("    @Column(name = \"").append(fieldName.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase()).append("\")\n");
+            }
             classContent.append("    private ").append(fieldType).append(" ").append(fieldName).append(";\n\n");
             n++;
         }
@@ -174,8 +176,59 @@ public class MakerApplication {
         serviceContent.append("import org.springframework.stereotype.Service;\n\n");
         serviceContent.append("@Service\n");
         serviceContent.append("public class ").append(serviceName).append(" {\n");
-        serviceContent.append("    @Autowired\n");
-        serviceContent.append("    private ").append(className).append("Repository ").append(repositoryName).append("Repository;\n");
+        serviceContent.append("    public static final String USER_AGENT = \"Mozilla/5.0\";\n");
+        serviceContent.append("    private final ").append(className).append("Repository ").append(repositoryName).append("Repository;\n\n");
+
+        serviceContent.append("    public void ").append(className).append("() throws IOException {\n");
+        serviceContent.append("        int pageNo = 1;\n");
+        serviceContent.append("        int numOfRows = 2000;\n");
+        serviceContent.append("        int totalCount = 0;\n");
+
+        serviceContent.append("        do {\n");
+        String urlStr1 = urlStr.split("\\?")[0];
+        String serviceInfo = urlStr1.replace("https://apis.data.go.kr", "");
+
+        serviceContent.append("            String urlStr = serviceUrl + \"").append(serviceInfo).append("?serviceKey=\"+ serviceKey + \"&pageNo=\" + pageNo + \"&numOfRows=\" + numOfRows + \"&resultType=xml\";\n");
+        serviceContent.append("            URL url = new URL(urlStr);\n\n");
+        serviceContent.append("            HttpsURLConnection con = (HttpsURLConnection) url.openConnection();\n");
+        serviceContent.append("            con.setRequestMethod(\"GET\");\n");
+        serviceContent.append("            con.setRequestProperty(\"User-Agent\", USER_AGENT);\n");
+        serviceContent.append("            con.setRequestProperty(\"CONTENT-TYPE\", \"application/json\");\n");
+        serviceContent.append("            con.setDoOutput(true);\n");
+        serviceContent.append("            con.setConnectTimeout(10000);\n");
+        serviceContent.append("            con.setReadTimeout(5000);\n\n");
+        serviceContent.append("            try (BufferedReader in = new BufferedReader(new InputStreamReader(url.openStream(), StandardCharsets.UTF_8))) {\n");
+        serviceContent.append("                StringBuilder response = new StringBuilder();\n");
+        serviceContent.append("                String inputline;\n");
+        serviceContent.append("                while ((inputline = in.readLine()) != null) {\n");
+        serviceContent.append("                    response.append(inputline.trim());\n");
+        serviceContent.append("                }\n");
+        serviceContent.append("                log.info(\"BusiSuspDiscInfo totalCount:{}, pageNo: {}, pageSize:{}\", totalCount, pageNo, Math.ceil((double) totalCount / numOfRows));\n");
+        serviceContent.append("                if (pageNo == 1) {\n");
+        serviceContent.append("                    JSONParser jsonParser = new JSONParser();\n");
+        serviceContent.append("                    JSONObject jsonObject = (JSONObject) jsonParser.parse(response.toString());\n");
+        serviceContent.append("                    JSONObject res = (JSONObject) jsonObject.get(\"response\");\n");
+        serviceContent.append("                    JSONObject body = (JSONObject) res.get(\"body\");\n");
+        serviceContent.append("                    totalCount = Integer.parseInt(body.get(\"totalCount\").toString());\n");
+
+        serviceContent.append("                }\n");
+        serviceContent.append("                if (totalCount == (int) ").append(repositoryName).append("Repository.count()) {\n");
+        serviceContent.append("                    break;\n");
+        serviceContent.append("                } else {\n");
+        serviceContent.append("                    this.").append(className).append("ProcessResponse(response.toString());\n");
+        serviceContent.append("                }\n");
+        serviceContent.append("            } catch (IOException ex) {\n");
+        serviceContent.append("                log.error(\"Error occurred while calling API\", ex);\n");
+        serviceContent.append("                throw ex;\n");
+        serviceContent.append("            } catch (ParserConfigurationException | SAXException e) {\n");
+        serviceContent.append("                throw new RuntimeException(e);\n");
+        serviceContent.append("            } finally {\n");
+        serviceContent.append("                con.disconnect();\n");
+        serviceContent.append("            }\n");
+        serviceContent.append("            pageNo++;\n");
+        serviceContent.append("        } while (pageNo <= Math.ceil((double) totalCount / numOfRows));\n");
+        serviceContent.append("    }\n\n");
+
         serviceContent.append("    private void ").append(className).append("ProcessResponse(String responseBody) throws ParserConfigurationException, SAXException, IOException {\n");
         serviceContent.append("        JSONParser jsonParser = new JSONParser();\n");
         serviceContent.append("        JSONObject jsonObject = (JSONObject) jsonParser.parse(responseBody);\n");
@@ -220,9 +273,7 @@ public class MakerApplication {
      * @throws IOException IOException
      * @throws SAXException SAXException
      */
-    private static void processResponseXML(String responseBody, String className, String serviceName) throws ParserConfigurationException, IOException, SAXException {
-        System.out.println("responseBody: " + responseBody);
-
+    private static void processResponseXML(String responseBody, String className, String serviceName, String urlStr) throws ParserConfigurationException, IOException, SAXException {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
         Document doc = dBuilder.parse(new InputSource(new StringReader(responseBody)));
@@ -253,7 +304,11 @@ public class MakerApplication {
                         }
 
                         String fieldType = GeneratorUtil.determineFieldType(fieldName, nValue == null ? "" : nValue.getNodeValue());
-                        classContent.append("    @Column(name = \"").append(fieldName.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase()).append("\")\n");
+                        if (fieldName.contains("Ctt")) {
+                            classContent.append("    @Column(name = \"").append(fieldName.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase()).append("\", length=4000").append(")\n");
+                        }else{
+                            classContent.append("    @Column(name = \"").append(fieldName.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase()).append("\")\n");
+                        }
                         classContent.append("    private ").append(fieldType).append(" ").append(fieldName).append(";\n\n");
                         n++;
                     }
@@ -276,10 +331,57 @@ public class MakerApplication {
         serviceContent.append("import com.herojoon.jpaproject.repository.").append(className).append("Repository;\n");
         serviceContent.append("import org.springframework.beans.factory.annotation.Autowired;\n");
         serviceContent.append("import org.springframework.stereotype.Service;\n\n");
+
         serviceContent.append("@Service\n");
         serviceContent.append("public class ").append(serviceName).append(" {\n");
-        serviceContent.append("    @Autowired\n");
-        serviceContent.append("    private ").append(className).append("Repository ").append(repositoryName).append("Repository;\n");
+        serviceContent.append("    public static final String USER_AGENT = \"Mozilla/5.0\";\n");
+        serviceContent.append("    private final ").append(className).append("Repository ").append(repositoryName).append("Repository;\n\n");
+
+        serviceContent.append("    public void ").append(className).append("() throws IOException {\n");
+        serviceContent.append("        int pageNo = 1;\n");
+        serviceContent.append("        int numOfRows = 2000;\n");
+        serviceContent.append("        int totalCount = 0;\n");
+
+        serviceContent.append("        do {\n");
+        String urlStr1 = urlStr.split("\\?")[0];
+        String serviceInfo = urlStr1.replace("https://apis.data.go.kr", "");
+
+        serviceContent.append("            String urlStr = serviceUrl + \"").append(serviceInfo).append("?serviceKey=\"+ serviceKey + \"&pageNo=\" + pageNo + \"&numOfRows=\" + numOfRows + \"&resultType=xml\";\n");
+        serviceContent.append("            URL url = new URL(urlStr);\n\n");
+        serviceContent.append("            HttpsURLConnection con = (HttpsURLConnection) url.openConnection();\n");
+        serviceContent.append("            con.setRequestMethod(\"GET\");\n");
+        serviceContent.append("            con.setRequestProperty(\"User-Agent\", USER_AGENT);\n");
+        serviceContent.append("            con.setRequestProperty(\"CONTENT-TYPE\", \"text/xml\");\n");
+        serviceContent.append("            con.setDoOutput(true);\n");
+        serviceContent.append("            con.setConnectTimeout(10000);\n");
+        serviceContent.append("            con.setReadTimeout(5000);\n\n");
+        serviceContent.append("            try (BufferedReader in = new BufferedReader(new InputStreamReader(url.openStream(), StandardCharsets.UTF_8))) {\n");
+        serviceContent.append("                StringBuilder response = new StringBuilder();\n");
+        serviceContent.append("                String inputline;\n");
+        serviceContent.append("                while ((inputline = in.readLine()) != null) {\n");
+        serviceContent.append("                    response.append(inputline.trim());\n");
+        serviceContent.append("                }\n");
+        serviceContent.append("                log.info(\"BusiSuspDiscInfo totalCount:{}, pageNo: {}, pageSize:{}\", totalCount, pageNo, Math.ceil((double) totalCount / numOfRows));\n");
+        serviceContent.append("                if (pageNo == 1) {\n");
+        serviceContent.append("                    totalCount = BatchUtil.getTotalCount(response.toString());\n");
+        serviceContent.append("                }\n");
+        serviceContent.append("                if (totalCount == (int) ").append(repositoryName).append("Repository.count()) {\n");
+        serviceContent.append("                    break;\n");
+        serviceContent.append("                } else {\n");
+        serviceContent.append("                    this.").append(className).append("ProcessResponse(response.toString());\n");
+        serviceContent.append("                }\n");
+        serviceContent.append("            } catch (IOException ex) {\n");
+        serviceContent.append("                log.error(\"Error occurred while calling API\", ex);\n");
+        serviceContent.append("                throw ex;\n");
+        serviceContent.append("            } catch (ParserConfigurationException | SAXException e) {\n");
+        serviceContent.append("                throw new RuntimeException(e);\n");
+        serviceContent.append("            } finally {\n");
+        serviceContent.append("                con.disconnect();\n");
+        serviceContent.append("            }\n");
+        serviceContent.append("            pageNo++;\n");
+        serviceContent.append("        } while (pageNo <= Math.ceil((double) totalCount / numOfRows));\n");
+        serviceContent.append("    }\n\n");
+
         serviceContent.append("    private void ").append(className).append("ProcessResponse(String responseBody) throws ParserConfigurationException, SAXException, IOException {\n");
         serviceContent.append("        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();\n");
         serviceContent.append("        DocumentBuilder builder = factory.newDocumentBuilder();\n");
