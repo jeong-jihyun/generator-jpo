@@ -82,5 +82,4 @@ generator-jpo/
 
 - `import`가 일부만 들어가고(`IOException`, `URL`, `HttpsURLConnection` 등 없음), `@Slf4j`와 생성자가 없어 `log`, Repository 필드를 쓸 수 없습니다.
 - 로그 문구에 `BusiSuspDiscInfo`가 고정으로 들어갑니다.
-- 만들어진 서비스는 JSON 방식 코드를 쓰면서 주소에는 `resultType=xml`을 붙입니다.
 - `GeneratorUtil.getQueryMap`은 `값이 없는 파라미터`(`a=`)가 있으면 오류가 납니다.
