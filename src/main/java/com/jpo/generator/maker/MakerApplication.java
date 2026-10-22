@@ -31,7 +31,18 @@ public class MakerApplication {
     public static final String USER_AGENT = "Mozilla/5.0";
 
     public static void main(String[] args) throws IOException, URISyntaxException, ParserConfigurationException, SAXException, ParseException {
-        String urlStr = "https://apis.data.go.kr/1160100/service/GetDiscInfoService_V2/getOutsDireHumaResoAffaRepo_V2?serviceKey=3NKSD4pMiU1dAnSi9YfhhEcZyp1uL2gFUk8wq7Iy3Nex4lGzhRXbYlaKnxUDb2P5IxztSaDkmL14JHAbRONlDw%3D%3D&numOfRows=1&pageNo=1&resultType=xml";
+        // 호출 주소는 첫 번째 인자로 받고, 없으면 기본 예시 주소에 환경변수 SERVICE_KEY(인증키)를 붙여 사용한다.
+        String urlStr;
+        if (args.length > 0) {
+            urlStr = args[0];
+        } else {
+            String serviceKey = System.getenv("SERVICE_KEY");
+            if (serviceKey == null || serviceKey.isBlank()) {
+                System.err.println("인증키가 없습니다. 환경변수 SERVICE_KEY를 설정하거나 호출 주소를 인자로 넘기세요.");
+                System.exit(1);
+            }
+            urlStr = "https://apis.data.go.kr/1160100/service/GetDiscInfoService_V2/getOutsDireHumaResoAffaRepo_V2?serviceKey=" + serviceKey + "&numOfRows=1&pageNo=1&resultType=xml";
+        }
 
         String temp = urlStr.split("\\?")[0];
         int lastSlashIndex = temp.lastIndexOf("/");
